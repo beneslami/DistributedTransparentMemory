@@ -11,5 +11,27 @@ User can perform two operations on each node:
 
 Originator is a node on which the user has issued put/get request.
 
+PUT request is uses when a user wants to save a (Key, Value) pair. Each node decides wether to save the pair in its local table or send it to a specific node in order to save it. The sending procedure should be done in UDP socket. The message type in this communication is called **PUT_FORWARD**. The content of the message includes IP address and TCP port of the originator. After receiving the message by the target node, the target node establishes TCP connection with the originator in order to obtain the value of X corresponded to K. The message that is sent through the TCP connection is called **WHAT_X**. The reply to this message is called **PUT_REPLY_X**.
+
+![diagram](data/put.png)
+
+The purpose of GET request is to fetch the value of X corresponding to the key K. According to below diagram, node 3 knows it does not have to fetch X against K from its local hash table, hence it forwards K to node 4 using UDP. The message id for this message is **GET_FORWARD**.
+
+![diagram](data/get.png)
+
+
+```
+typedef struct appln_msg_{
+  unsigned int msg_id;
+  unsigned int k;
+  unsigned int x;
+  unsigned int address;
+  unsigned int tcp_port;
+}appln_msg_t;
+
+```
+
+![diagram](data/message.png)
+
 In order to run the code:
 ./node.out 127.0.0.1 <Own UDP port> <Sucessor UDP prot> <Own TCP Port>
