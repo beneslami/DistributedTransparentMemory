@@ -32,6 +32,3 @@ typedef struct appln_msg_{
 ```
 
 ![diagram](data/message.png)
-
-In order to run the code:
-./node.out 127.0.0.1 <Own UDP port> <Sucessor UDP prot> <Own TCP Port>
