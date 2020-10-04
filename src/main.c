@@ -67,28 +67,35 @@ int main(void){
   initializeHashTable();
 
   //create UDP socket
-
+  udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
+  if(udp_socket < 0){
+    perror("UDP socket error");
+  }
+  memset(&address, 0, sizeof(address));
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = htonl(INADDR_ANY);
+  address.sin_port = htons();
   //UDP socket attributes for current node
 
   //bind UDP socket
-
+  int bnd = bind(udp_socket, (sockaddr*)&address, sizeof(address));
+  if(bnd < 0){
+    perror("bind error");
+  }
+  
   //create master TCP socket
   master_socekt = socket(AF_INET, SOCK_STREAM, 0);
   if(socket < 0){
     perror("Socket Error");
   }
   printf("master TCP socket is created\n");
-  memset(&address, 0, sizeof(address));
-  address.sin_family = AF_INET;
-  address.sin_addr.s_addr = htonl(INADDR_ANY);
-  address.sin_port = htons();
 
   //set master socket to allow multiple connections
 
   //TCP socket attributes for current node
 
   //bind TCP socket
-  int bnd = bind(master_socekt, (sockaddr*)address, sizeof(address));
+  bnd = bind(master_socekt, (sockaddr*)&address, sizeof(address));
   if(bnd < 0){
     perror("bind error");
   }
@@ -97,7 +104,7 @@ int main(void){
   if(lsn < 0){
     perror("listen error");
   }
-  
+
   while(1){
     FD_ZERO(&readfds);
     FD_SET(udp_socket, &readfds);     //UDP socket
