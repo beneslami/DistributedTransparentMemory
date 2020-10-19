@@ -63,7 +63,7 @@ int main(int argc, char *argv){
 	puts("-----------------------------------\n\nENTER GET/PUT REQUEST :");
 
 
-  initializeHashTable();
+  initializeHashTable();  // TODO : impelemnt
 
   //create UDP socket
   udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
@@ -84,6 +84,7 @@ int main(int argc, char *argv){
     perror("bind error");
     exit(EXIT_FAILURE);
   }
+  addr_len = sizeof(struct sockaddr);
 
   //create master TCP socket
   master_socekt = socket(AF_INET, SOCK_STREAM, 0);
@@ -157,7 +158,62 @@ int main(int argc, char *argv){
     }
 
     else if(FD_ISSET(udp_socket, &readfds)){
-        // TODO: will be changed
+      char rec_buff[1024];
+      int len = recvfrom(udp_socket, rec_buff, 1024, 0, (struct sockaddr*)&client_addr, &addr_len);
+      rec_buff[len] = '\0';
+      printf(".... UDP packet is received from IP-ADDRESS: %s, PORT: %d, Node_ID: %d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), extract_node_ID(rec_buff)); // TODO: implement extract node_ID
+      printf("%s\n",rec_buff);
+      if(check_if_data_is_local(node_id, rec_buff) == 0){
+        forward_UDP(node_id+1, rec_buff);
+        puts("\n---Enter GET/PUT request----\n\n");
+      }
+      else{
+        printf("Processing the request in this node\n\n");
+        key = extract_key_from_put(rec_buff);     // TODO: implement extract_key_from_put
+        int node_no = extract_node_ID(rec_buff);  // TODO: implement extract_node_ID
+
+        int sock, bytes_received;
+        char send_data[1024], recv_data[1024];
+        char flag = rec_buff[strlen(rec_buff)-2];
+        struct hostent *host;
+        struct sockaddr_in server_addr;
+        host = gethostbyname(extract_IP_address(rec_buff, '[',','));  //TODO :implement extract_IP_address
+        sock = socket(AF_INET, SOCK_STREAM, 0);
+        if(sock == -1){
+          perror("socket");
+          exit(EXIT_FAILURE);
+        }
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(extract_value_from_put(rec_buff)); //TODO: impelemnt extract_value_from_put
+        server_addr.sin_addr = *((struct in_addr)host->h_addr);
+        bzero(&(server_addr.sin_zero), 0);
+        if(connect(sock, (struct sockaddr*)&server_addr, sizeof(struct sockaddr)) == -1){
+          perror("connect");
+          exit(EXIT_FAILURE);
+        }
+        if(flag == 's'){
+          int fetched_value = fetch_value_from_hash_table(key);
+          if(fetched_value != 0){
+            sprintf(send_data, "Value = %d. The value is retrieved from node %d\n\n---Enter GET/PUT request----\n\n", fetched_value, node_id);
+          }
+          else{
+            sprintf(send_data, "RESULT: no hash entry for this key on the node %d.\n\n---Enter GET/PUT request----\n\n", node_id);
+          }
+          send(sock, send_data, strlen(send_data), 0);
+        }
+        else{
+          bytes_received = recv(sock, recv_data, 1024);
+          recv_data[bytes_received] = '\0';
+          if(add_data_to_hash_table(key, atoi(recv_data))){
+              sprintf(send_data, "PUT operation done successfully. data added to node %d\n\n---Enter GET/PUT request----\n\n", node_no);
+          }
+          else{
+              strcpy(send_data, "PUT operation has been failed");
+          }
+          send(sock, send_data, strlen(send_data), 0);
+          close(sock);
+          fflush(stdout);
+        }
     }
 
     else if(FD_ISSET(0, &readfds)){
@@ -203,7 +259,7 @@ int main(int argc, char *argv){
         }
       }
       fflush(stdout);
-    } // end of probing console
+    }// end of probing console
   } // end of while(1)
   return 0;
 }
