@@ -47,7 +47,8 @@ int main(int argc, char *argv){
   char buffer[1025], replyBuffer[1024];
   fd_set readfds;
   int node_id = atoi(argv[1]);
-  int opt = TRUE;
+  int opt = TRUE, transferValue;
+  int key, value;
 
   for(int i=0; i<N; i++){
     node[i].ip_address = IP;    //prone to error
@@ -151,29 +152,54 @@ int main(int argc, char *argv){
       close(new_socket);
     }
 
-    else if(FD_ISSET(udp_socket, &readfds)){   //TODO
-
+    else if(FD_ISSET(udp_socket, &readfds)){
+        // TODO: will be changed
     }
+
     else if(FD_ISSET(0, &readfds)){
       char rec_buffer[2048];
       gets(rec_buffer);
       if(rec_buffer[0] == 'r' || rec_buffer[0] == 'R'){
-        DisplayTable();    //TODO
+        DisplayTable();    // TODO : implement a function to display Hash table
       }
-      else if(check_if_data_is_local() == 0){ //return 1 if data is for this node, return 0 if data is not for this node
-        // check if the command is put or get --> call function get_or_put(): return 1 for get, 0 for put
-
-        // if it is a put command, then extract the value to be sent. and set the flag for put
-        // else, set the flag for get.
-        // forward the data to the next node via udp socket
+      else if(check_if_data_is_local(node_id, rec_buffer) == 0){ // TODO: implement the check function. It return 1 if data is for this node, return 0 if data is not for this node
+        char outputbuff[40], *out, flag;
+        int i = 0;
+        if(check_cmd(rec_buffer) == 0){   // TODO: implement check_cmd function. It returns 1 for get, 0 for put.
+          transferValue = extract_value_from_put(rec_buffer);
+          flag = 'r';
+        }
+        else{
+          flag = 's';
+        }
+        out = forwarded_data(rec_buffer, flag);    // TODO: implement forwarded_data function. It prepares the data which is to be sent.
+        for(i=0; i < strlen(out); i++){
+          outputbuff[i] = *(out+i);
+        }
+        outputbuff[i] = '\0';
+        forward_UDP(num_id+1, outputbuff);  // TODO: implement forward_UDP function.
+        free(out);
       }
       else{
         printf("Processing the request here\n\n");
-
-        // check if the request is put or get
-        
+        if(check_cmd(rec_buffer) == 1){
+          key = extract_key_from_get_request(rec_buffer);
+          value = fetch_value_from_hash_table(key);
+          if(value == 0){
+            printf("no value in the hash table for the key %d\n", key);
+          }
+          else{
+            printf("Key = %d\t-->\t Value = %d\n", key, value);
+          }
       }
-    }
-  }
+        else{
+          key = extract_key_from_buffer(rec_buffer);      //TODO: implement
+          value = extract_value_from_buffer(rec_buffer);  //TODO: implement
+          add_data_to_hash_table(key, value);                 //TODO: implement
+        }
+      }
+      fflush(stdout);
+    } // end of probing console
+  } // end of while(1)
   return 0;
 }
