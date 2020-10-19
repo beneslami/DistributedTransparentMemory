@@ -136,8 +136,12 @@ int main(int argc, char *argv){
         perror("Accept");
         exit(EXIT_FAILURE);
       }
-      if(){                  // means put request was made on this node , and this node need to supply the value  //TODO
-
+      if(transferValue != 0){                  // means put request was made on this node , and this node need to supply the value  //TODO
+        itoa(transferValue, replyBuffer);
+        send(new_socket, replyBuffer, strlen(replyBuffer), 0);
+        read(new_socket, buffer, 1024);
+        printf("\n%s\n", buffer);
+        transferValue = 0;
         close(new_socket);
       }
       else{                 // means get request was made and tcp server is only need to recieve value from client
