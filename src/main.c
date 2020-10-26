@@ -55,7 +55,7 @@ fetch_value_from_hash_table(int key, int num_id){
     else{
       struct node *start = table[relative_index].link;
       while(start->link != NULL){
-        start = start->next;
+        start = start->link;
       }
       return_value = start->data;
     }
@@ -77,7 +77,7 @@ DisplayTable(int num_id){
     int from = (from_key - num_id)/N;
     int to = (to_key - num_id)/N;
     int fetched_value, key;
-    for(int i=from, i<=to; i++){
+    for(int i=from; i<=to; i++){
       key = i*N + num_id;
       fetched_value = fetch_value_from_hash_table(key, num_id);
       if(fetched_value != 0){
@@ -103,24 +103,24 @@ appendNode(struct node* start, int data){
 
 }
 
-void
+int
 add_data_to_hash_table(int key, int value, int num_id){
   int maxlimit_key = (TABLESIZE-1)*N + num_id;
   int relative_index, return_value;
   if(key%N == num_id && key <= maxlimit_key && key > -1){
     relative_index = (key - num_id)/N;
     if(table[relative_index].data == 0){
-      table[relative_index].data = data;
+      table[relative_index].data = value;
       return_value = 1;
     }
     else if(table[relative_index].data != 0 && table[relative_index].link == NULL){
       table[relative_index].link = (struct node *)malloc(sizeof(struct node));
-      table[relative_index].link->data = data;
+      table[relative_index].link->data = value;
       table[relative_index].link->link = NULL;
       return_value =1;
     }
     else{
-      appendNode(table[relative_index].link, data);
+      appendNode(table[relative_index].link, value);
       return_value = 1;
     }
     printf("\nRESULT: At key : %d, Value %d is inserted\n", key, value);
@@ -130,6 +130,7 @@ add_data_to_hash_table(int key, int value, int num_id){
     printf("\nERROR: Key %d Value %d cannot inserted\n", key, value);
     return_value = 0;
   }
+  return return_value;
 }
 /*  End  : Hash Table functions */
 
@@ -225,7 +226,7 @@ check_cmd(char request[]){
 
 int
 extract_node_ID(char request[]){
-  char *node = extract_IP_address(buff, ')', '[');
+  char *node = extract_IP_address(request, ')', '[');
   return atoi(node);
 }
 
@@ -236,15 +237,69 @@ check_if_data_is_local(int node_id, char request[]){
     k = extract_key_from_get_request(request);
   }
   else{
-    k = extract_key_from_put(requst);
+    k = extract_key_from_put(request);
   }
-  if(k % N) == num_id)
+  if((k % N) == node_id)
     return 1;
   else
     return 0;
 }
 
 /* End : String handling functions */
+
+char*
+forwarded_data(char inputbuff[], char flag, int num_id){
+  int key, tcpportno;
+  char keybuff[5], portbuff[5], f1[2];
+  f1[0] = flag;
+  f1[1] = '\0';
+  char *outputbuff = (char*)malloc(sizeof(char)*40);
+  char nodebuff[3];
+  if(check_cmd(inputbuff) == 1){
+    key = extract_key_from_get_request(inputbuff);
+  }
+  else{
+    key = extract_key_from_put(inputbuff);
+  }
+  tcpportno = node[num_id].tcpportno;
+  itoa(tcpportno, portbuff);
+  itoa(key, keybuff);
+  strcpy(outputbuff, "xxx(");
+  strcat(outputbuff, keybuff);
+  strcat(outputbuff, ",");
+  strcat(outputbuff, portbuff);
+  strcat(outputbuff, ")");
+  itoa(num, nodebuff);
+  strcat(outputbuff, nodebuff);
+  strcat(outputbuff, nodebuff);
+  strcat(outputbuff, "[");
+  strcat(outputbuff, node[num_id].ip_address);
+  strcat(outputbuff, ",");
+  strcat(outputbuff, f1);
+  strcat(outputbuff, "]");
+  outputbuff[strlen(outputbuff) + 1] = '\0';
+  return outputbuff;
+}
+
+void
+forward_UDP(int destination_node, char sendString[]){
+  destination_node = destination_node % N;
+  int sock;
+  struct sockaddr_in server_addr;
+  struct hostent *host;
+  host = (struct hostent*)gethostbyname(node[destination_node].ip_address);
+  if((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1){
+    perror("socket");
+    exit(EXIT_FAILURE);
+  }
+  server_addr.sin_family = AF_INET;
+  server_addr.sin_port = htons(node[destination_node].udpportno);
+  server_addr.sin_addr = *((struct in_addr *)host->h_addr);
+  bzero(&(server_addr.sin_zero), 8);
+  sendto(sock, sendString, strlen(sendString), 0, (struct sockaddr *)&server_addr, sizeof(struct sockaddr));
+  printf("\nFORWARD REQUEST: %s has been forwarded to node ----> %d\n", sendString, destination_node);
+  close(sock);
+}
 
 int
 main(int argc, char *argv){
@@ -258,7 +313,7 @@ main(int argc, char *argv){
   int key, value;
 
   for(int i=0; i<N; i++){
-    node[i].ip_address = IP;    //prone to error
+    strcpy(node[i].ip_address, "127.0.0.1");
     node[i].tcpportno = 2000 + i*2;
     node[i].udpportno = node[i].tcpportno + 1;
   }
@@ -282,21 +337,21 @@ main(int argc, char *argv){
   //UDP socket attributes for current node
   server_addr_udp.sin_family = AF_INET;
   server_addr_udp.sin_addr.s_addr = INADDR_ANY;
-  server_addr_udp.sin_port = htons(node[node_id.udpportno]);
+  server_addr_udp.sin_port = htons(node[node_id].udpportno);
   memset(&server_addr_udp, 0, sizeof(server_addr_udp));
 
   //bind UDP socket
-  int bnd = bind(udp_socket, (sockaddr*)&server_addr_udp, sizeof(server_addr_udp));
+  int bnd = bind(udp_socket, (struct sockaddr*)&server_addr_udp, sizeof(server_addr_udp));
   if(bnd < 0){
     perror("bind error");
     exit(EXIT_FAILURE);
   }
-  addr_len = sizeof(struct sockaddr);
+  int addr_len = sizeof(struct sockaddr);
 
   //create master TCP socket
   master_socekt = socket(AF_INET, SOCK_STREAM, 0);
   if(master_socekt < 0){
-    perror("Socket Error");add_data_to_hash_table(key, value, num_id);
+    perror("Socket Error");
     exit(EXIT_FAILURE);
   }
   printf("master TCP socket is created\n");
@@ -313,7 +368,7 @@ main(int argc, char *argv){
   address.sin_port = htons(node[node_id].tcpportno);
 
   //bind TCP socket
-  bnd = bind(master_socekt, (sockaddr*)&address, sizeof(address));
+  bnd = bind(master_socekt, (struct sockaddr*)&address, sizeof(address));
   if(bnd < 0){
     perror("bind error");
     exit(EXIT_FAILURE);
@@ -392,15 +447,15 @@ main(int argc, char *argv){
         }
         server_addr.sin_family = AF_INET;
         server_addr.sin_port = htons(extract_value_from_put(rec_buff));
-        server_addr.sin_addr = *((struct in_addr)host->h_addr);
+        server_addr.sin_addr = *((struct in_addr*)host->h_addr);
         bzero(&(server_addr.sin_zero), 0);
         if(connect(sock, (struct sockaddr*)&server_addr, sizeof(struct sockaddr)) == -1){
           perror("connect");
           exit(EXIT_FAILURE);
         }
         if(flag == 's'){
-          int fetched_value = fetch_value_from_hash_table(key, num_id);
-          if(fetched_value != 0){add_data_to_hash_table
+          int fetched_value = fetch_value_from_hash_table(key, node_id);
+          if(fetched_value != 0){
             sprintf(send_data, "Value = %d. The value is retrieved from node %d\n\n---Enter GET/PUT request----\n\n", fetched_value, node_id);
           }
           else{
@@ -409,9 +464,9 @@ main(int argc, char *argv){
           send(sock, send_data, strlen(send_data), 0);
         }
         else{
-          bytes_received = recv(sock, recv_data, 1024);
+          bytes_received = recv(sock, recv_data, 1024, 0);
           recv_data[bytes_received] = '\0';
-          if(add_data_to_hash_table(key, atoi(recv_data))){
+          if(add_data_to_hash_table(key, atoi(recv_data), node_id)){
               sprintf(send_data, "PUT operation done successfully. data added to node %d\n\n---Enter GET/PUT request----\n\n", node_no);
           }
           else{
@@ -421,13 +476,14 @@ main(int argc, char *argv){
           close(sock);
           fflush(stdout);
         }
+      }
     }
 
     else if(FD_ISSET(0, &readfds)){
       char rec_buffer[2048];
-      gets(rec_buffer);
+      fgets(rec_buffer, 128, stdin);
       if(rec_buffer[0] == 'r' || rec_buffer[0] == 'R'){
-        DisplayTable(num_id);
+        DisplayTable(node_id);
       }
       else if(check_if_data_is_local(node_id, rec_buffer) == 0){
         char outputbuff[40], *out, flag;
@@ -439,19 +495,19 @@ main(int argc, char *argv){
         else{
           flag = 's';
         }
-        out = forwarded_data(rec_buffer, flag);    // TODO: implement forwarded_data function. It prepares the data which is to be sent.
+        out = forwarded_data(rec_buffer, flag, node_id);
         for(i=0; i < strlen(out); i++){
           outputbuff[i] = *(out+i);
         }
         outputbuff[i] = '\0';
-        forward_UDP(num_id+1, outputbuff);  // TODO: implement forward_UDP function.
+        forward_UDP(node_id+1, outputbuff);
         free(out);
       }
       else{
         printf("Processing the request here\n\n");
         if(check_cmd(rec_buffer) == 1){
           key = extract_key_from_get_request(rec_buffer);
-          value = fetch_value_from_hash_table(key, num_id);
+          value = fetch_value_from_hash_table(key, node_id);
           if(value == 0){
             printf("no value in the hash table for the key %d\n", key);
           }
@@ -462,7 +518,7 @@ main(int argc, char *argv){
         else{
           key = extract_key_from_put(rec_buffer);
           value = extract_value_from_put(rec_buffer);
-          add_data_to_hash_table(key, value, num_id);
+          add_data_to_hash_table(key, value, node_id);
         }
       }
       fflush(stdout);
