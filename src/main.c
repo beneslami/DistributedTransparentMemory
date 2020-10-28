@@ -302,17 +302,19 @@ forward_UDP(int destination_node, char sendString[]){
 }
 
 int
-main(int argc, char *argv){
+main(int argc, char **argv){
   int master_socekt, udp_socket;
   struct sockaddr_in address, server_addr_udp, client_addr;
   int new_socket, maxfd, addrlen;
   char buffer[1025], replyBuffer[1024];
+
   fd_set readfds;
   int node_id = atoi(argv[1]);
   int opt = TRUE, transferValue;
   int key, value;
 
   for(int i=0; i<N; i++){
+    node[i].ip_address = malloc(sizeof(char)*strlen("127.0.0.1"));
     strcpy(node[i].ip_address, "127.0.0.1");
     node[i].tcpportno = 2000 + i*2;
     node[i].udpportno = node[i].tcpportno + 1;
