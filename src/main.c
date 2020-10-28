@@ -123,7 +123,7 @@ add_data_to_hash_table(int key, int value, int num_id){
       appendNode(table[relative_index].link, value);
       return_value = 1;
     }
-    printf("\nRESULT: At key : %d, Value %d is inserted\n", key, value);
+    printf("\nRESULT: key:%d, Value:%d is inserted\n", key, value);
     puts("-----------------------------------\n\nENTER GET/PUT REQUEST :");
   }
   else{
@@ -181,9 +181,9 @@ extract_value_from_put(char request[]){
   int position = b - request;
   int position1 = c - request;
   int k;
-  char to[16];
-  memset(to, 0, 16);
-  strncpy(to, request + position1, position1 - position);
+  char to[32];
+  strncpy(to, request + position + 1, position1 - position - 1);
+  to[position1 - position - 1] = '\0';
   k = atoi(to);
   return k;
 }
@@ -196,7 +196,8 @@ extract_key_from_put(char request[]){
   int position1 = c - request;
   int k;
   char to[4];
-  strncpy(to, request + position+1, position1 - position);
+  strncpy(to, request + position + 1, position1 - position - 1);
+  to[position1 - position - 1] = '\0';
   k = atoi(to);
   fflush(stdout);
   return k;
@@ -210,7 +211,8 @@ extract_key_from_get_request(char request[]){
   int position1 = c - request;
   int k;
   char to[4];
-  strncpy(to, request + position+1, position1 - position);
+  strncpy(to, request + position + 1, position1 - position - 1);
+  to[position1 - position - 1] = '\0';
   k = atoi(to);
   fflush(stdout);
   return k;
@@ -233,14 +235,14 @@ extract_node_ID(char request[]){
 int
 check_if_data_is_local(int node_id, char request[]){
   int k;
-  if(check_cmd(request) == 1){
+  if(check_cmd(request) == 1){   //return 1 for get, 0 for put
     k = extract_key_from_get_request(request);
   }
   else{
     k = extract_key_from_put(request);
   }
   if((k % N) == node_id)
-    return 1;
+    return 1;   // data is local
   else
     return 0;
 }
@@ -265,9 +267,9 @@ forwarded_data(char inputbuff[], char flag, int num_id){
   itoa(tcpportno, portbuff);
   itoa(key, keybuff);
   strcpy(outputbuff, "xxx(");
-  strcat(outputbuff, keybuff);
+  strcat(outputbuff, keybuff); // key
   strcat(outputbuff, ",");
-  strcat(outputbuff, portbuff);
+  strcat(outputbuff, portbuff); // port
   strcat(outputbuff, ")");
   itoa(num, nodebuff);
   strcat(outputbuff, nodebuff);
@@ -275,7 +277,7 @@ forwarded_data(char inputbuff[], char flag, int num_id){
   strcat(outputbuff, "[");
   strcat(outputbuff, node[num_id].ip_address);
   strcat(outputbuff, ",");
-  strcat(outputbuff, f1);
+  strcat(outputbuff, f1);  // flag
   strcat(outputbuff, "]");
   outputbuff[strlen(outputbuff) + 1] = '\0';
   return outputbuff;
@@ -283,7 +285,7 @@ forwarded_data(char inputbuff[], char flag, int num_id){
 
 void
 forward_UDP(int destination_node, char sendString[]){
-  destination_node = destination_node % N;
+  destination_node = destination_node % N;  // as the topology is ring
   int sock;
   struct sockaddr_in server_addr;
   struct hostent *host;
@@ -292,12 +294,16 @@ forward_UDP(int destination_node, char sendString[]){
     perror("socket");
     exit(EXIT_FAILURE);
   }
+  bzero(&(server_addr), sizeof(server_addr));
   server_addr.sin_family = AF_INET;
   server_addr.sin_port = htons(node[destination_node].udpportno);
-  server_addr.sin_addr = *((struct in_addr *)host->h_addr);
-  bzero(&(server_addr.sin_zero), 8);
-  sendto(sock, sendString, strlen(sendString), 0, (struct sockaddr *)&server_addr, sizeof(struct sockaddr));
-  printf("\nFORWARD REQUEST: %s has been forwarded to node ----> %d\n", sendString, destination_node);
+  server_addr.sin_addr = *(struct in_addr *)host->h_addr;
+  if(sendto(sock, sendString, strlen(sendString), 0, (struct sockaddr *)&server_addr, sizeof(struct sockaddr)) > 0){
+      printf("\nFORWARD REQUEST: %s has been forwarded to node ----> %d\n", sendString, destination_node);
+  }
+  else{
+    printf("error sending over UDP from node %d to node %d\n", destination_node-1 , destination_node);
+  }
   close(sock);
 }
 
@@ -316,14 +322,16 @@ main(int argc, char **argv){
   for(int i=0; i<N; i++){
     node[i].ip_address = malloc(sizeof(char)*strlen("127.0.0.1"));
     strcpy(node[i].ip_address, "127.0.0.1");
-    node[i].tcpportno = 2000 + i*2;
+    node[i].tcpportno = 20000 + i*2;
     node[i].udpportno = node[i].tcpportno + 1;
   }
+
+  printf("ip address: %s, UDP Port: %d, TCP Port: %d\n\n", node[node_id].ip_address, node[node_id].udpportno, node[node_id].tcpportno);
 
   printf ("       INSTRUCTIONS \n\n  ================= NODE %d =======================\n",node_id);
 	puts("   1.'put' request format : PUT(<integer>,<integer>)\n");
 	puts("   2.'get' request format : GET(<integer>)\n");
-	puts("   3.To print Hash Table : 'p'\n");
+	puts("   3.To print Hash Table : 'r'\n");
 	puts("-----------------------------------\n\nENTER GET/PUT REQUEST :");
 
 
@@ -425,8 +433,14 @@ main(int argc, char **argv){
       char rec_buff[1024];
       int len = recvfrom(udp_socket, rec_buff, 1024, 0, (struct sockaddr*)&client_addr, &addr_len);
       rec_buff[len] = '\0';
-      printf(".... UDP packet is received from IP-ADDRESS: %s, PORT: %d, Node_ID: %d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), extract_node_ID(rec_buff));
-      printf("%s\n",rec_buff);
+      if(len > 0){
+        printf(".... UDP packet is received from IP-ADDRESS: %s, PORT: %d, Node_ID: %d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), extract_node_ID(rec_buff));
+        printf("%s\n",rec_buff);
+      }
+      else{
+        perror("socket");
+        exit(EXIT_FAILURE);
+      }
       if(check_if_data_is_local(node_id, rec_buff) == 0){
         forward_UDP(node_id+1, rec_buff);
         puts("\n---Enter GET/PUT request----\n\n");
@@ -435,6 +449,7 @@ main(int argc, char **argv){
         printf("Processing the request in this node\n\n");
         key = extract_key_from_put(rec_buff);
         int node_no = extract_node_ID(rec_buff);
+        printf("%d\t%d\n", key, node_id);
 
         int sock, bytes_received;
         char send_data[1024], recv_data[1024];
@@ -487,10 +502,10 @@ main(int argc, char **argv){
       if(rec_buffer[0] == 'r' || rec_buffer[0] == 'R'){
         DisplayTable(node_id);
       }
-      else if(check_if_data_is_local(node_id, rec_buffer) == 0){
+      else if(check_if_data_is_local(node_id, rec_buffer) == 0){ //return 1 if the data is for this node, 0 if not
         char outputbuff[40], *out, flag;
         int i = 0;
-        if(check_cmd(rec_buffer) == 0){
+        if(check_cmd(rec_buffer) == 0){        // return 1 for get, 0 for put
           transferValue = extract_value_from_put(rec_buffer);
           flag = 'r';
         }
@@ -507,16 +522,16 @@ main(int argc, char **argv){
       }
       else{
         printf("Processing the request here\n\n");
-        if(check_cmd(rec_buffer) == 1){
+        if(check_cmd(rec_buffer) == 1){     // return 1 for get, 0 for put
           key = extract_key_from_get_request(rec_buffer);
           value = fetch_value_from_hash_table(key, node_id);
           if(value == 0){
             printf("no value in the hash table for the key %d\n", key);
           }
           else{
-            printf("Key = %d\t-->\t Value = %d\n", key, value);
+            printf("Key = %d\t--->\tValue = %d\n", key, value);
           }
-      }
+        }
         else{
           key = extract_key_from_put(rec_buffer);
           value = extract_value_from_put(rec_buffer);
