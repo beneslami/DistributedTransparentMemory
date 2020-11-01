@@ -322,7 +322,7 @@ main(int argc, char **argv){
   for(int i=0; i<N; i++){
     node[i].ip_address = malloc(sizeof(char)*strlen("127.0.0.1"));
     strcpy(node[i].ip_address, "127.0.0.1");
-    node[i].tcpportno = 20000 + i*2;
+    node[i].tcpportno = 2000 + i*2;
     node[i].udpportno = node[i].tcpportno + 1;
   }
 
@@ -400,11 +400,12 @@ main(int argc, char **argv){
       maxfd = master_socekt;
     else
       maxfd = udp_socket;
-    select(maxfd+1, &readfds, NULL, NULL, NULL);
+
+    select(maxfd + 1, &readfds, NULL, NULL, NULL);
 
     if(FD_ISSET(master_socekt, &readfds)){
       addrlen = sizeof(address);
-      new_socket = accept(master_socekt, (struct sockaddr*)&address, &addrlen);
+      new_socket = accept(master_socekt, (struct sockaddr*)&address, (socklen_t *)&addrlen);
       if(new_socket < 0){
         perror("Accept");
         exit(EXIT_FAILURE);
@@ -430,8 +431,9 @@ main(int argc, char **argv){
     }
 
     else if(FD_ISSET(udp_socket, &readfds)){
+      printf("!!!\n");
       char rec_buff[1024];
-      int len = recvfrom(udp_socket, rec_buff, 1024, 0, (struct sockaddr*)&client_addr, &addr_len);
+      int len = recvfrom(udp_socket, rec_buff, 1024, 0, (struct sockaddr*)&client_addr, (socklen_t*)&addr_len);
       rec_buff[len] = '\0';
       if(len > 0){
         printf(".... UDP packet is received from IP-ADDRESS: %s, PORT: %d, Node_ID: %d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), extract_node_ID(rec_buff));
@@ -465,7 +467,7 @@ main(int argc, char **argv){
         server_addr.sin_family = AF_INET;
         server_addr.sin_port = htons(extract_value_from_put(rec_buff));
         server_addr.sin_addr = *((struct in_addr*)host->h_addr);
-        bzero(&(server_addr.sin_zero), 0);
+        bzero(&(server_addr.sin_zero), sizeof(server_addr.sin_zero));
         if(connect(sock, (struct sockaddr*)&server_addr, sizeof(struct sockaddr)) == -1){
           perror("connect");
           exit(EXIT_FAILURE);
