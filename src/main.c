@@ -294,10 +294,10 @@ forward_UDP(int destination_node, char sendString[]){
     perror("socket");
     exit(EXIT_FAILURE);
   }
-  bzero(&(server_addr), sizeof(server_addr));
+  memset(&server_addr, 0, sizeof(server_addr));
   server_addr.sin_family = AF_INET;
   server_addr.sin_port = htons(node[destination_node].udpportno);
-  server_addr.sin_addr = *(struct in_addr *)host->h_addr;
+  server_addr.sin_addr.s_addr = INADDR_ANY;//*((struct in_addr *)host->h_addr);
   if(sendto(sock, sendString, strlen(sendString), 0, (struct sockaddr *)&server_addr, sizeof(struct sockaddr)) > 0){
       printf("\nFORWARD REQUEST: %s has been forwarded to node ----> %d\n", sendString, destination_node);
   }
@@ -345,10 +345,10 @@ main(int argc, char **argv){
   }
 
   //UDP socket attributes for current node
+  memset(&server_addr_udp, 0, sizeof(server_addr_udp));
   server_addr_udp.sin_family = AF_INET;
   server_addr_udp.sin_addr.s_addr = INADDR_ANY;
   server_addr_udp.sin_port = htons(node[node_id].udpportno);
-  memset(&server_addr_udp, 0, sizeof(server_addr_udp));
 
   //bind UDP socket
   int bnd = bind(udp_socket, (struct sockaddr*)&server_addr_udp, sizeof(server_addr_udp));
