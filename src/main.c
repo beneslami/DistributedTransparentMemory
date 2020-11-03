@@ -72,7 +72,7 @@ DisplayTable(int num_id){
     to_key = temp;
   }
   printf("\n-----------Hash table contents-----------\n");
-  if(from_key % N == num_id && to_key % N == num){
+  if(from_key % N == num_id){
     int i;
     int from = (from_key - num_id)/N;
     int to = (to_key - num_id)/N;
@@ -297,7 +297,7 @@ forward_UDP(int destination_node, char sendString[]){
   memset(&server_addr, 0, sizeof(server_addr));
   server_addr.sin_family = AF_INET;
   server_addr.sin_port = htons(node[destination_node].udpportno);
-  server_addr.sin_addr.s_addr = INADDR_ANY;//*((struct in_addr *)host->h_addr);
+  server_addr.sin_addr.s_addr = INADDR_ANY;
   if(sendto(sock, sendString, strlen(sendString), 0, (struct sockaddr *)&server_addr, sizeof(struct sockaddr)) > 0){
       printf("\nFORWARD REQUEST: %s has been forwarded to node ----> %d\n", sendString, destination_node);
   }
